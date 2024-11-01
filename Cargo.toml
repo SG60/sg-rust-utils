@@ -1,0 +1,12 @@
+[workspace]
+members = ["packages/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Sam Greening"]
+homepage = "https://github.com/SG60/sg-rust-utils"
+repository = "https://github.com/SG60/sg-rust-utils"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

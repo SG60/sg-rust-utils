@@ -1,0 +1,52 @@
+name: Rust
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Automatically cancel in-progress actions on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # get correct commit sha for pull requests as well
+  COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - rust: aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+
+      - uses: rui314/setup-mold@2e332a0b602c2fc65d2d3995941b1b29a5f554a0 # v1
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target.rust }}
+      - uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2
+        with:
+          cache-all-crates: "true"
+          cache-on-failure: "true"
+
+      # nix dev shell setup
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: cachix/cachix-action@18cf96c7c98e048e10a83abd92116114cd8504be # v14
+        with: { name: "nix-community" }
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: test
+        run: nix develop -c cargo test
+      - name: build
+        env:
+          TARGET_CC: clang
+        run: nix develop .#${{ matrix.target.rust }} -c cargo build --target ${{ matrix.target.rust }} --release
+
+

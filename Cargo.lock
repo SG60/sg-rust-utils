@@ -705,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-tracing-utils"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "http 1.1.0",

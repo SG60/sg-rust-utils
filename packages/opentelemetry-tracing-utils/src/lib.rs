@@ -7,8 +7,11 @@ use std::str::FromStr;
 use tracing_opentelemetry::OpenTelemetryLayer;
 
 // tracing
-use opentelemetry::{global, trace::TracerProvider as _};
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::TracerProvider};
+use opentelemetry::{global, propagation::TextMapCompositePropagator, trace::TracerProvider as _};
+use opentelemetry_sdk::{
+    propagation::{BaggagePropagator, TraceContextPropagator},
+    trace::TracerProvider,
+};
 pub use opentelemetry_semantic_conventions as semcov;
 use tonic::{metadata::MetadataKey, service::Interceptor};
 use tracing::Span;
@@ -65,26 +68,36 @@ impl LoggingSetupBuilder {
     pub fn build(&self) -> Result<()> {
         let otlp_enabled = self.otlp_output_enabled;
 
-        global::set_text_map_propagator(TraceContextPropagator::new());
+        // First create 1 or more propagators
+        let baggage_propagator = BaggagePropagator::new();
+        let trace_context_propagator = TraceContextPropagator::new();
 
-        let provider = TracerProvider::builder()
+        // Then create a composite propagator
+        let composite_propagator = TextMapCompositePropagator::new(vec![
+            Box::new(baggage_propagator),
+            Box::new(trace_context_propagator),
+        ]);
+
+        global::set_text_map_propagator(composite_propagator);
+
+        let basic_no_otlp_tracer_provider = TracerProvider::builder()
             .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
             .build();
-        let basic_no_otlp_tracer = provider.tracer(env!("CARGO_PKG_NAME"));
 
         // Install a new OpenTelemetry trace pipeline
         let otlp_tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             // trace config. Collects service.name etc.
-            .with_trace_config(opentelemetry_sdk::trace::config())
+            .with_trace_config(opentelemetry_sdk::trace::Config::default())
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
             .install_batch(opentelemetry_sdk::runtime::TokioCurrentThread)?;
 
         let tracer = match otlp_enabled {
             true => otlp_tracer,
             // BUG: the non-otlp tracer isn't correctly setting context/linking ids
-            false => basic_no_otlp_tracer,
-        };
+            false => basic_no_otlp_tracer_provider,
+        }
+        .tracer(env!("CARGO_PKG_NAME"));
 
         // Create a tracing layer with the configured tracer
         let opentelemetry: OpenTelemetryLayer<_, _> = tracing_opentelemetry::layer()
@@ -193,11 +206,11 @@ pub mod tower_tracing {
     use std::task::{Context, Poll};
 
     use http::Request;
-    use opentelemetry::{
-        global,
-        propagation::{Extractor, Injector},
-    };
+    use opentelemetry::global;
+    use opentelemetry_http::HeaderExtractor;
     use tower::{Layer, Service};
+    use tower_http::classify::{ServerErrorsAsFailures, SharedClassifier};
+    use tower_http::trace::TraceLayer;
     use tracing::trace;
     use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -236,7 +249,10 @@ pub mod tower_tracing {
             let context = tracing::Span::current().context();
 
             global::get_text_map_propagator(|propagator| {
-                propagator.inject_context(&context, &mut HeaderInjector(request.headers_mut()))
+                propagator.inject_context(
+                    &context,
+                    &mut opentelemetry_http::HeaderInjector(request.headers_mut()),
+                )
             });
 
             trace!(
@@ -255,54 +271,82 @@ new headers:
         }
     }
 
-    /// Trace context propagation: associate the current span with the OTel trace of the given request,
+    /// Trace context propagation: associate a new span with the OTel trace of the given request,
     /// if any and valid.
-    pub fn extract_trace_context<BodyType>(request: Request<BodyType>) -> Request<BodyType>
-    where
-        BodyType: std::fmt::Debug,
-    {
-        // Current context, if no or invalid data is received.
+    ///
+    /// This uses the tower-http crate
+    pub fn make_tower_http_otel_trace_layer<BodyType>() -> TraceLayer<
+        SharedClassifier<ServerErrorsAsFailures>,
+        impl (Fn(&Request<BodyType>) -> tracing::Span) + Clone,
+    > {
+        tower_http::trace::TraceLayer::new_for_http().make_span_with(
+            |request: &http::Request<BodyType>| {
+                let context = get_otel_context_from_request(request);
+
+                let span = tracing::debug_span!(
+                        "request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                        version = ?request.version(),
+                        headers = ?request.headers());
+
+                span.set_parent(context);
+
+                span
+            },
+        )
+    }
+
+    /// Just get the context, don't set the parent context
+    pub fn get_otel_context_from_request<BodyType>(
+        request: &Request<BodyType>,
+    ) -> opentelemetry::Context {
+        // Return context, either from request or pre-existing if no or invalid data is received.
         let parent_context = global::get_text_map_propagator(|propagator| {
-            propagator.extract(&HeaderExtractor(request.headers()))
+            let extracted = propagator.extract(&HeaderExtractor(request.headers()));
+            trace!("extracted: {:#?}", &extracted);
+            extracted
         });
         trace!("parent context (extraction): {:#?}", parent_context);
-        tracing::Span::current().set_parent(parent_context);
 
-        request
+        parent_context
     }
 
-    // NOTE: HeaderInjector and HeaderExtractor are here temporarily due to http v1 incompatibility
-    struct HeaderInjector<'a>(pub &'a mut http::HeaderMap);
+    #[cfg(test)]
+    mod tests {
+        use opentelemetry::{baggage::BaggageExt, trace::TraceContextExt};
 
-    impl<'a> Injector for HeaderInjector<'a> {
-        /// Set a key and value in the HeaderMap.  Does nothing if the key or value are not valid inputs.
-        fn set(&mut self, key: &str, value: String) {
-            println!("In Header Injector set function!!");
-            trace!("setting key: {}, to value: {}", key, value);
-            trace!("old self.0: {:?}", self.0);
-            if let Ok(name) = http::header::HeaderName::from_bytes(key.as_bytes()) {
-                if let Ok(val) = http::header::HeaderValue::from_str(&value) {
-                    self.0.insert(name, val);
-                }
-            }
-            trace!("new self.0: {:?}", self.0);
-        }
-    }
+        use crate::tower_tracing::get_otel_context_from_request;
 
-    struct HeaderExtractor<'a>(pub &'a http::HeaderMap);
+        /// Test whether propagation from standard headers is working
+        #[tokio::test]
+        async fn test_trace_context_extractor() {
+            crate::set_up_logging().unwrap_or(());
 
-    impl<'a> Extractor for HeaderExtractor<'a> {
-        /// Get a value for a key from the HeaderMap.  If the value is not valid ASCII, returns None.
-        fn get(&self, key: &str) -> Option<&str> {
-            self.0.get(key).and_then(|value| value.to_str().ok())
-        }
+            let request: http::Request<String> = http::Request::builder()
+                .uri("/")
+                .header(
+                    "traceparent",
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                )
+                .header("tracestate", "asdf=123456")
+                .header(
+                    "baggage",
+                    "userId=alice,serverNode=DF%2028,isProduction=false",
+                )
+                .body("".to_string())
+                .unwrap();
 
-        /// Collect all the keys from the HeaderMap.
-        fn keys(&self) -> Vec<&str> {
-            self.0
-                .keys()
-                .map(|value| value.as_str())
-                .collect::<Vec<_>>()
+            let context = get_otel_context_from_request(&request);
+
+            dbg!(&context);
+            dbg!(&context.has_active_span());
+            assert!(context.has_active_span());
+
+            let baggage = context.baggage();
+            assert_eq!(baggage.get("userId"), Some(&"alice".into()));
+            assert_eq!(baggage.get("serverNode"), Some(&"DF 28".into()));
+            assert_eq!(baggage.get("isProduction"), Some(&"false".into()));
         }
     }
 }

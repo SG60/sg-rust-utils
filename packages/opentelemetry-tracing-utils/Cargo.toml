@@ -1,6 +1,6 @@
 [package]
 name = "opentelemetry-tracing-utils"
-version = "0.4.0"
+version = "0.4.1"
 edition.workspace = true
 license = "MIT OR Apache-2.0"
 authors.workspace = true

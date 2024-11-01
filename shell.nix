@@ -1,5 +1,5 @@
-{ mkShellNoCC, protobuf }:
+{ mkShellNoCC, protobuf, cargo-release }:
 
 mkShellNoCC {
-  packages = [ protobuf ];
+  packages = [ protobuf cargo-release ];
 }

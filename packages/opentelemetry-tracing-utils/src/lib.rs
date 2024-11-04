@@ -275,6 +275,9 @@ new headers:
     /// if any and valid.
     ///
     /// This uses the tower-http crate
+    ///
+    /// For propagation to work, RUST_LOG needs to include this crate, and also tower_http if you
+    /// want access log events from there.
     pub fn make_tower_http_otel_trace_layer<BodyType>() -> TraceLayer<
         SharedClassifier<ServerErrorsAsFailures>,
         impl (Fn(&Request<BodyType>) -> tracing::Span) + Clone,

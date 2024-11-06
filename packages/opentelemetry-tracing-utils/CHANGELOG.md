@@ -24,5 +24,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-url -->
 [Unreleased]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.1...HEAD
-[unreleased]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.0...opentelemetry-tracing-utils-v0.5.1
+[0.5.1]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.0...opentelemetry-tracing-utils-v0.5.1
 [0.5.0]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.4.2...opentelemetry-tracing-utils-v0.5.0

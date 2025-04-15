@@ -26,7 +26,7 @@ opentelemetry-semantic-conventions = "0.26"
 opentelemetry-otlp = "0.26"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tracing-serde = "0.1"
+tracing-serde = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 # Integration between the tracing crate and the opentelemetry crate
 tracing-opentelemetry = "0.27"

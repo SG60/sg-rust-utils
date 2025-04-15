@@ -7,10 +7,10 @@ use std::str::FromStr;
 use tracing_opentelemetry::OpenTelemetryLayer;
 
 // tracing
-use opentelemetry::{global, propagation::TextMapCompositePropagator, trace::TracerProvider as _};
+use opentelemetry::{global, propagation::TextMapCompositePropagator, trace::TracerProvider};
 use opentelemetry_sdk::{
     propagation::{BaggagePropagator, TraceContextPropagator},
-    trace::TracerProvider,
+    trace::SdkTracerProvider,
 };
 pub use opentelemetry_semantic_conventions as semcov;
 use tonic::{metadata::MetadataKey, service::Interceptor};
@@ -26,8 +26,6 @@ use tracing_subscriber::{
 use self::trace_output_fmt::JsonWithTraceId;
 
 pub mod trace_output_fmt;
-
-pub use opentelemetry::global::shutdown_tracer_provider;
 
 /// Set up an OTEL pipeline when the OTLP endpoint is set. Otherwise just set up tokio tracing
 /// support.
@@ -80,11 +78,13 @@ impl LoggingSetupBuilder {
 
         global::set_text_map_propagator(composite_propagator);
 
-        let basic_no_otlp_tracer_provider = TracerProvider::builder()
+        let basic_no_otlp_tracer_provider = SdkTracerProvider::builder()
             .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
             .build();
 
         // Install a new OpenTelemetry trace pipeline
+        let otlp_tracer_exporter = opentelemetry_otlp::SpanExporter::builder().build();
+
         let otlp_tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             // trace config. Collects service.name etc.

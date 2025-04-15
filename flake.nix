@@ -7,12 +7,19 @@
         pkgs = import nixpkgs { inherit system; };
         pkgsCross = pkgs.pkgsCross;
         dev-shell-path = ./shell.nix;
-      in
-      {
+
+        # A more minimal shell for building in CI
+        build-only-shell = { mkShellNoCC, protobuf }:
+          mkShellNoCC { packages = [ protobuf ]; };
+
+      in {
         devShells = {
-          default = pkgs.callPackage dev-shell-path { };
+          default = pkgs.callPackage build-only-shell { };
           aarch64-unknown-linux-musl =
-            pkgsCross.aarch64-multiplatform-musl.callPackage dev-shell-path { };
+            pkgsCross.aarch64-multiplatform-musl.callPackage build-only-shell
+            { };
+
+          full-dev-shell = pkgs.callPackage dev-shell-path { };
         };
       });
 }

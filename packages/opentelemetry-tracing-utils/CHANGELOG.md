@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+
+- Now using newer versions of the Rust OTEL ecosystem crates
+
+### Deprecated
+
+- No longer possible to use the global `shutdown_tracer_provider()` function. Instead, you should hold on to the `LoggingSetupBuildResult` struct, returned by `set_up_logging()`, and call shutdown on the actual provider.
+
 ## [0.5.1] - 2024-11-05
 
 ### Changed

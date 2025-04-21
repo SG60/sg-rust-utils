@@ -37,6 +37,12 @@ jobs:
           cache-on-failure: "true"
 
       # nix dev shell setup
+      # the nix community cache action needs to use this nix installer
+      - uses: nixbuild/nix-quick-install-action@v30
+        with:
+          nix_conf: |
+            keep-env-derivations = true
+            keep-outputs = true
       - uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
       - uses: cachix/cachix-action@0fc020193b5a1fa3ac4575aa3a7d3aa6a35435ad # v16
         with: { name: "nix-community" }

@@ -43,7 +43,6 @@ jobs:
           nix_conf: |
             keep-env-derivations = true
             keep-outputs = true
-      - uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
       - uses: cachix/cachix-action@0fc020193b5a1fa3ac4575aa3a7d3aa6a35435ad # v16
         with: { name: "nix-community" }
       - name: Restore and save Nix store

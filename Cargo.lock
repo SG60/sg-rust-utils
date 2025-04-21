@@ -955,7 +955,7 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-tracing-utils"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "console-subscriber",

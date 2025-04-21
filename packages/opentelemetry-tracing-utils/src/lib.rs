@@ -7,10 +7,10 @@ use std::str::FromStr;
 use tracing_opentelemetry::OpenTelemetryLayer;
 
 // tracing
-use opentelemetry::{global, propagation::TextMapCompositePropagator, trace::TracerProvider as _};
+use opentelemetry::{global, propagation::TextMapCompositePropagator, trace::TracerProvider};
 use opentelemetry_sdk::{
     propagation::{BaggagePropagator, TraceContextPropagator},
-    trace::TracerProvider,
+    trace::SdkTracerProvider,
 };
 pub use opentelemetry_semantic_conventions as semcov;
 use tonic::{metadata::MetadataKey, service::Interceptor};
@@ -27,11 +27,9 @@ use self::trace_output_fmt::JsonWithTraceId;
 
 pub mod trace_output_fmt;
 
-pub use opentelemetry::global::shutdown_tracer_provider;
-
 /// Set up an OTEL pipeline when the OTLP endpoint is set. Otherwise just set up tokio tracing
 /// support.
-pub fn set_up_logging() -> Result<()> {
+pub fn set_up_logging() -> Result<LoggingSetupBuildResult> {
     LoggingSetupBuilder::new().build()
 }
 
@@ -65,7 +63,7 @@ impl LoggingSetupBuilder {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn build(&self) -> Result<()> {
+    pub fn build(&self) -> Result<LoggingSetupBuildResult> {
         let otlp_enabled = self.otlp_output_enabled;
 
         // First create 1 or more propagators
@@ -80,24 +78,26 @@ impl LoggingSetupBuilder {
 
         global::set_text_map_propagator(composite_propagator);
 
-        let basic_no_otlp_tracer_provider = TracerProvider::builder()
+        let basic_no_otlp_tracer_provider = SdkTracerProvider::builder()
             .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
             .build();
 
         // Install a new OpenTelemetry trace pipeline
-        let otlp_tracer = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            // trace config. Collects service.name etc.
-            .with_trace_config(opentelemetry_sdk::trace::Config::default())
-            .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-            .install_batch(opentelemetry_sdk::runtime::TokioCurrentThread)?;
+        // OTLP over GRPC tracer exporter
+        let otlp_tracer_exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .build()?;
+        // OTLP tracer setup, using the exporter from above
+        let otlp_tracer: SdkTracerProvider = SdkTracerProvider::builder()
+            .with_batch_exporter(otlp_tracer_exporter)
+            .build();
 
-        let tracer = match otlp_enabled {
+        let tracer_provider = match otlp_enabled {
             true => otlp_tracer,
             // BUG: the non-otlp tracer isn't correctly setting context/linking ids
             false => basic_no_otlp_tracer_provider,
-        }
-        .tracer(env!("CARGO_PKG_NAME"));
+        };
+        let tracer = tracer_provider.tracer(env!("CARGO_PKG_NAME"));
 
         // Create a tracing layer with the configured tracer
         let opentelemetry: OpenTelemetryLayer<_, _> = tracing_opentelemetry::layer()
@@ -162,8 +162,22 @@ impl LoggingSetupBuilder {
 
         tracing_registry.try_init()?;
 
-        Ok(())
+        // Set the global tracer provider using a clone of the tracer_provider.
+        // Setting global tracer provider is required if other parts of the application
+        // uses global::tracer() or global::tracer_with_version() to get a tracer.
+        // Cloning simply creates a new reference to the same tracer provider. It is
+        // important to hold on to the tracer_provider here, so as to invoke
+        // shutdown on it when application ends.
+        global::set_tracer_provider(tracer_provider.clone());
+
+        Ok(LoggingSetupBuildResult { tracer_provider })
     }
+}
+
+/// Hang on to this to be able to call `shutdown()` on the providers.
+pub struct LoggingSetupBuildResult {
+    /// Hang on to this to be able to call `shutdown()` on the provider.
+    pub tracer_provider: SdkTracerProvider,
 }
 
 /// This interceptor adds tokio tracing opentelemetry headers to grpc requests.
@@ -324,7 +338,7 @@ new headers:
         /// Test whether propagation from standard headers is working
         #[tokio::test]
         async fn test_trace_context_extractor() {
-            crate::set_up_logging().unwrap_or(());
+            let _ = crate::set_up_logging().map_err(|err| dbg!(err));
 
             let request: http::Request<String> = http::Request::builder()
                 .uri("/")

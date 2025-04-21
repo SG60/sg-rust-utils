@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [0.6.0] - 2025-04-21
+
 ### Changed
 
 - Now using newer versions of the Rust OTEL ecosystem crates
@@ -31,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - make_tower_http_otel_trace_layer function, to create a tower layer that will propagate OTEL traces and also log requests.
 
 <!-- next-url -->
-[Unreleased]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.1...HEAD
+[Unreleased]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.6.0...HEAD
+[0.6.0]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.1...opentelemetry-tracing-utils-v0.6.0
 [0.5.1]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.0...opentelemetry-tracing-utils-v0.5.1
 [0.5.0]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.4.2...opentelemetry-tracing-utils-v0.5.0

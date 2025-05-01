@@ -38,7 +38,7 @@ jobs:
 
       # nix dev shell setup
       # the nix community cache action needs to use this nix installer
-      - uses: nixbuild/nix-quick-install-action@v30
+      - uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
         with:
           nix_conf: |
             keep-env-derivations = true
@@ -46,7 +46,7 @@ jobs:
       - uses: cachix/cachix-action@0fc020193b5a1fa3ac4575aa3a7d3aa6a35435ad # v16
         with: { name: "nix-community" }
       - name: Restore and save Nix store
-        uses: nix-community/cache-nix-action@v6.1.2
+        uses: nix-community/cache-nix-action@c448f065ba14308da81de769632ca67a3ce67cf5 # v6.1.2
         with:
           # restore and save a cache using this key
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}

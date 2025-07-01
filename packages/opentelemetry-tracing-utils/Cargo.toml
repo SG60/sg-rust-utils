@@ -44,4 +44,4 @@ tower = ["dep:tower", "dep:http", "dep:opentelemetry-http", "dep:tower-http"]
 tokio-console = ["dep:console-subscriber"]
 
 [dev-dependencies]
-tokio = "1.41"
+tokio = "=1.43.1"

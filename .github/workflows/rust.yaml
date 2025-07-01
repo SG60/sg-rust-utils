@@ -38,7 +38,7 @@ jobs:
 
       # nix dev shell setup
       # the nix community cache action needs to use this nix installer
-      - uses: nixbuild/nix-quick-install-action@v30
+      - uses: nixbuild/nix-quick-install-action@5bb6a3b3abe66fd09bbf250dce8ada94f856a703 # v30
         with:
           nix_conf: |
             keep-env-derivations = true

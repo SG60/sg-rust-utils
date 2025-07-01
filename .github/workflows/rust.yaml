@@ -69,8 +69,8 @@ jobs:
           purge-primary-key: never
 
       - name: test
-        run: nix develop -c cargo test
+        run: nix develop -c cargo test --locked
       - name: build
         env:
           TARGET_CC: clang
-        run: nix develop .#${{ matrix.target.rust }} -c cargo build --target ${{ matrix.target.rust }} --release
+        run: nix develop .#${{ matrix.target.rust }} -c cargo build --target ${{ matrix.target.rust }} --release --locked

@@ -33,6 +33,12 @@ pub fn set_up_logging() -> Result<LoggingSetupBuildResult> {
     LoggingSetupBuilder::new().build()
 }
 
+/// The env var that controls whether to use OTLP or not.
+/// Accepts "otlp" or "none".
+pub const OTEL_TRACES_EXPORTER: &str = "OTEL_TRACES_EXPORTER";
+/// This will override OTEL_TRACES_EXPORTER if set.
+pub const NO_OTLP: &str = "NO_OTLP";
+
 #[derive(Debug)]
 pub struct LoggingSetupBuilder {
     pub otlp_output_enabled: bool,
@@ -41,10 +47,23 @@ pub struct LoggingSetupBuilder {
 }
 impl Default for LoggingSetupBuilder {
     fn default() -> Self {
-        let otlp_enabled = std::env::var("NO_OTLP")
-            .unwrap_or_else(|_| "0".to_owned())
-            .as_str()
-            == "0";
+        let no_otlp = match std::env::var(NO_OTLP).as_deref() {
+            Ok("0") => false,
+            Ok(_) => true,
+            Err(_) => false,
+        };
+
+        let otel_traces_exporter = match std::env::var(OTEL_TRACES_EXPORTER).as_deref() {
+            Ok("otlp") => OtelTracesExporterOption::Otlp,
+            Ok("none") => OtelTracesExporterOption::None,
+            _ => OtelTracesExporterOption::Otlp,
+        };
+
+        let otlp_enabled = no_otlp == false
+            && match otel_traces_exporter {
+                OtelTracesExporterOption::Otlp => true,
+                OtelTracesExporterOption::None => false,
+            };
 
         // either use the otlp state or PRETTY_LOGS env var to decide log format
         let pretty_logs = std::env::var("PRETTY_LOGS")
@@ -57,6 +76,11 @@ impl Default for LoggingSetupBuilder {
             use_test_writer: false,
         }
     }
+}
+
+enum OtelTracesExporterOption {
+    Otlp,
+    None,
 }
 
 impl LoggingSetupBuilder {
@@ -78,6 +102,7 @@ impl LoggingSetupBuilder {
 
         global::set_text_map_propagator(composite_propagator);
 
+        // An exporter to be used when there is no OTLP endpoint
         let basic_no_otlp_tracer_provider = SdkTracerProvider::builder()
             .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
             .build();

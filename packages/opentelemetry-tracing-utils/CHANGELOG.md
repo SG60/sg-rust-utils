@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+## [0.7.1] - 2025-11-21
+
 ## [0.7.0] - 2025-11-21
 
 ## [0.7.0] - 2025-11-21
@@ -40,7 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - make_tower_http_otel_trace_layer function, to create a tower layer that will propagate OTEL traces and also log requests.
 
 <!-- next-url -->
-[Unreleased]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.7.0...HEAD
+[Unreleased]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.7.1...HEAD
+[0.7.1]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.7.0...opentelemetry-tracing-utils-v0.7.1
 [0.7.0]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.7.0...opentelemetry-tracing-utils-v0.7.0
 [0.7.0]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.6.0...opentelemetry-tracing-utils-v0.7.0
 [0.6.0]: https://github.com/sg60/sg-rust-utils/compare/opentelemetry-tracing-utils-v0.5.1...opentelemetry-tracing-utils-v0.6.0

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Added
+- Support for the `OTEL_TRACES_EXPORTER` env var to control whether to use OTLP or not.
+
 ## [0.6.0] - 2025-04-21
 
 ### Changed

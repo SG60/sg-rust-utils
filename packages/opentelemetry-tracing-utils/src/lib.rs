@@ -103,9 +103,7 @@ impl LoggingSetupBuilder {
         global::set_text_map_propagator(composite_propagator);
 
         // An exporter to be used when there is no OTLP endpoint
-        let basic_no_otlp_tracer_provider = SdkTracerProvider::builder()
-            .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
-            .build();
+        let basic_no_otlp_tracer_provider = SdkTracerProvider::builder().build();
 
         // Install a new OpenTelemetry trace pipeline
         // OTLP over GRPC tracer exporter

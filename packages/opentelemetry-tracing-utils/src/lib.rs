@@ -41,10 +41,20 @@ pub const NO_OTLP: &str = "NO_OTLP";
 
 #[derive(Debug)]
 pub struct LoggingSetupBuilder {
-    pub otlp_output_enabled: bool,
+    pub otel_traces_exporter: OtelTracesExporterOption,
     pub pretty_logs: bool,
     pub use_test_writer: bool,
 }
+#[derive(Debug)]
+pub enum OtelTracesExporterOption {
+    /// Send traces to an OTLP endpoint
+    Otlp,
+    /// Write OTLP traces to stdout. Useful for debugging otel stuff.
+    Stdout,
+    /// Don't send OTEL traces anywhere
+    None,
+}
+
 impl Default for LoggingSetupBuilder {
     fn default() -> Self {
         let no_otlp = match std::env::var(NO_OTLP).as_deref() {
@@ -53,34 +63,29 @@ impl Default for LoggingSetupBuilder {
             Err(_) => false,
         };
 
-        let otel_traces_exporter = match std::env::var(OTEL_TRACES_EXPORTER).as_deref() {
-            Ok("otlp") => OtelTracesExporterOption::Otlp,
-            Ok("none") => OtelTracesExporterOption::None,
-            _ => OtelTracesExporterOption::Otlp,
+        let otel_traces_exporter = match no_otlp {
+            true => OtelTracesExporterOption::None,
+            false => match std::env::var(OTEL_TRACES_EXPORTER).as_deref() {
+                Ok("otlp") => OtelTracesExporterOption::Otlp,
+                Ok("none") => OtelTracesExporterOption::None,
+                Ok("stdout") => OtelTracesExporterOption::Stdout,
+                _ => OtelTracesExporterOption::Otlp,
+            },
         };
-
-        let otlp_enabled = no_otlp == false
-            && match otel_traces_exporter {
-                OtelTracesExporterOption::Otlp => true,
-                OtelTracesExporterOption::None => false,
-            };
 
         // either use the otlp state or PRETTY_LOGS env var to decide log format
         let pretty_logs = std::env::var("PRETTY_LOGS")
             .map(|e| &e == "1")
-            .unwrap_or_else(|_| !otlp_enabled);
+            // if PRETTY_LOGS is not set, and the otel traces exporter is set to none, then use
+            // pretty logs (since this is probably a dev environment)
+            .unwrap_or_else(|_| matches!(otel_traces_exporter, OtelTracesExporterOption::None));
 
         Self {
-            otlp_output_enabled: otlp_enabled,
+            otel_traces_exporter,
             pretty_logs,
             use_test_writer: false,
         }
     }
-}
-
-enum OtelTracesExporterOption {
-    Otlp,
-    None,
 }
 
 impl LoggingSetupBuilder {
@@ -88,7 +93,7 @@ impl LoggingSetupBuilder {
         Self::default()
     }
     pub fn build(&self) -> Result<LoggingSetupBuildResult> {
-        let otlp_enabled = self.otlp_output_enabled;
+        let otlp_enabled = &self.otel_traces_exporter;
 
         // First create 1 or more propagators
         let baggage_propagator = BaggagePropagator::new();
@@ -103,7 +108,11 @@ impl LoggingSetupBuilder {
         global::set_text_map_propagator(composite_propagator);
 
         // An exporter to be used when there is no OTLP endpoint
-        let basic_no_otlp_tracer_provider = SdkTracerProvider::builder().build();
+        let otel_tracer_provider_no_output = SdkTracerProvider::builder().build();
+        // An exporter that sends otel traces to stdout. Useful for debugging otel stuff.
+        let otel_tracer_provider_stdout = SdkTracerProvider::builder()
+            .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
+            .build();
 
         // Install a new OpenTelemetry trace pipeline
         // OTLP over GRPC tracer exporter
@@ -116,9 +125,10 @@ impl LoggingSetupBuilder {
             .build();
 
         let tracer_provider = match otlp_enabled {
-            true => otlp_tracer,
+            OtelTracesExporterOption::Otlp => otlp_tracer,
+            OtelTracesExporterOption::Stdout => otel_tracer_provider_stdout,
             // BUG: the non-otlp tracer isn't correctly setting context/linking ids
-            false => basic_no_otlp_tracer_provider,
+            OtelTracesExporterOption::None => otel_tracer_provider_no_output,
         };
         let tracer = tracer_provider.tracer(env!("CARGO_PKG_NAME"));
 

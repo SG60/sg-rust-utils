@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - ReleaseDate
 
+### Changed
+- **BREAKING**: Support sending OTEL trace data to stdout, for debugging. This is a breaking change, as the type of `LoggingSetupBuilder` has changed.
+
 ## [0.7.1] - 2025-11-21
 
 ## [0.7.0] - 2025-11-21
